@@ -9,6 +9,7 @@ from requests.exceptions import HTTPError
 from odoo import http
 from odoo.exceptions import ValidationError
 from odoo.tests.common import HOST, HttpCase, Opener, get_db_name, tagged
+from .common import PasswordSecurityCommon
 
 from odoo.addons.auth_signup.models.res_users import SignupError
 
@@ -18,7 +19,7 @@ class EndTestException(Exception):
 
 
 @tagged("-at_install", "post_install")
-class TestPasswordSecuritySignup(HttpCase):
+class TestPasswordSecuritySignup(PasswordSecurityCommon, HttpCase):
     def signup(self, username, password):
         """Signup user"""
         self.session = http.root.session_store.new()

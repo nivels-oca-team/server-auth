@@ -4,13 +4,14 @@
 from datetime import datetime, timedelta
 from unittest import mock
 
+from .common import PasswordSecurityCommon
 from odoo import http, registry
 from odoo.exceptions import UserError, ValidationError
 from odoo.tests.common import HOST, HttpCase, Opener, get_db_name, new_test_user, tagged
 
 
 @tagged("-at_install", "post_install")
-class TestPasswordSecurityLogin(HttpCase):
+class TestPasswordSecurityLogin(PasswordSecurityCommon, HttpCase):
     def setUp(self):
         super().setUp()
         self.username = "jackoneill"
@@ -85,9 +86,7 @@ class TestPasswordSecurityLogin(HttpCase):
             env = self.env(cr)
             user = env["res.users"].search([("login", "=", self.username)])
             user.password_write_date = three_days_ago
-            self.env["ir.config_parameter"].sudo().set_param(
-                "password_security.expiration_days", 1
-            )
+            user.company_id.password_expiration = 1
 
         # Try to log in
         response = self.login(self.username, self.passwd)
@@ -112,9 +111,7 @@ class TestPasswordSecurityLogin(HttpCase):
             env = self.env(cr)
             user = env["res.users"].search([("login", "=", self.username)])
             user.password_write_date = three_days_ago
-            self.env["ir.config_parameter"].sudo().set_param(
-                "password_security.expiration_days", 1
-            )
+            user.company_id.password_expiration = 1
 
         # Try to access just a page
         req_page1 = self.url_open("/web")

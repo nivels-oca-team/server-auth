@@ -33,36 +33,15 @@ class ResUsers(models.Model):
         return super().write(vals)
 
     @api.model
-    def _get_all_password_params(self):
-        params = self.env["ir.config_parameter"].sudo()
-        res = {
-            "minlength": int(
-                params.get_param("auth_password_policy.minlength", default=0)
-            ),
-            "expiration_days": int(
-                params.get_param("password_security.expiration_days", default=60)
-            ),
-            "minimum_hours": int(
-                params.get_param("password_security.minimum_hours", default=60)
-            ),
-            "history": int(params.get_param("password_security.history", default=30)),
-            "lower": int(params.get_param("password_security.lower", default=1)),
-            "upper": int(params.get_param("password_security.upper", default=1)),
-            "numeric": int(params.get_param("password_security.numeric", default=1)),
-            "special": int(params.get_param("password_security.special", default=1)),
-        }
-        return res
-
-    @api.model
     def get_password_policy(self):
         data = super().get_password_policy()
-        pwd_params = self._get_all_password_params()
+        company_id = self.env.user.company_id
         data.update(
             {
-                "password_lower": pwd_params["lower"],
-                "password_upper": pwd_params["upper"],
-                "password_numeric": pwd_params["numeric"],
-                "password_special": pwd_params["special"],
+                "password_lower": company_id.password_lower,
+                "password_upper": company_id.password_upper,
+                "password_numeric": company_id.password_numeric,
+                "password_special": company_id.password_special,
             }
         )
         return data
@@ -79,31 +58,36 @@ class ResUsers(models.Model):
 
     def password_match_message(self):
         self.ensure_one()
+        company_id = self.company_id
         message = []
-        pwd_params = self._get_all_password_params()
-        if pwd_params["lower"]:
+        if company_id.password_lower:
             message.append(
-                _("\n* Lowercase letter (at least %s characters)") % pwd_params["lower"]
+                _("\n* Lowercase letter (at least %s characters)")
+                % str(company_id.password_lower)
             )
-        if pwd_params["upper"]:
+        if company_id.password_upper:
             message.append(
-                _("\n* Uppercase letter (at least %s characters)") % pwd_params["upper"]
+                _("\n* Uppercase letter (at least %s characters)")
+                % str(company_id.password_upper)
             )
-        if pwd_params["numeric"]:
+        if company_id.password_numeric:
             message.append(
-                _("\n* Numeric digit (at least %s characters)") % pwd_params["numeric"]
+                _("\n* Numeric digit (at least %s characters)")
+                % str(company_id.password_numeric)
             )
-        if pwd_params["special"]:
+        if company_id.password_special:
             message.append(
                 _("\n* Special character (at least %s characters)")
-                % pwd_params["special"]
+                % str(company_id.password_special)
             )
         if message:
             message = [_("Must contain the following:")] + message
 
-        if pwd_params["minlength"]:
+        params = self.env["ir.config_parameter"].sudo()
+        minlength = params.get_param("auth_password_policy.minlength", default=0)
+        if minlength:
             message = [
-                _("Password must be %d characters or more.") % pwd_params["minlength"]
+                _("Password must be %d characters or more.") % int(minlength)
             ] + message
         return "\r".join(message)
 
@@ -116,14 +100,16 @@ class ResUsers(models.Model):
         self.ensure_one()
         if not password:
             return True
-        pwd_params = self._get_all_password_params()
+        company_id = self.company_id
+        params = self.env["ir.config_parameter"].sudo()
+        minlength = params.get_param("auth_password_policy.minlength", default=0)
         password_regex = [
             "^",
-            "(?=.*?[a-z]){" + str(pwd_params["lower"]) + ",}",
-            "(?=.*?[A-Z]){" + str(pwd_params["upper"]) + ",}",
-            "(?=.*?\\d){" + str(pwd_params["numeric"]) + ",}",
-            r"(?=.*?[\W_]){" + str(pwd_params["special"]) + ",}",
-            ".{%d,}$" % pwd_params["minlength"],
+            "(?=.*?[a-z]){" + str(company_id.password_lower) + ",}",
+            "(?=.*?[A-Z]){" + str(company_id.password_upper) + ",}",
+            "(?=.*?\\d){" + str(company_id.password_numeric) + ",}",
+            r"(?=.*?[\W_]){" + str(company_id.password_special) + ",}",
+            ".{%d,}$" % int(minlength),
         ]
         if not re.search("".join(password_regex), password):
             raise ValidationError(self.password_match_message())
@@ -135,12 +121,11 @@ class ResUsers(models.Model):
         if not self.password_write_date:
             return True
 
-        pwd_params = self._get_all_password_params()
-        if not pwd_params["expiration_days"]:
+        if not self.company_id.password_expiration:
             return False
 
         days = (fields.Datetime.now() - self.password_write_date).days
-        return days > pwd_params["expiration_days"]
+        return days > self.company_id.password_expiration
 
     def action_expire_password(self):
         expiration = delta_now(days=+1)
@@ -154,19 +139,19 @@ class ResUsers(models.Model):
         :raises: UserError on invalidated pass reset attempt
         :return: True on allowed reset
         """
-        pwd_params = self._get_all_password_params()
         for user in self:
-            if pwd_params["minimum_hours"] <= 0:
+            pass_min = user.company_id.password_minimum
+            if pass_min <= 0:
                 continue
             write_date = user.password_write_date
-            delta = timedelta(hours=pwd_params["minimum_hours"])
+            delta = timedelta(hours=pass_min)
             if write_date + delta > datetime.now():
                 raise UserError(
                     _(
                         "Passwords can only be reset every %d hour(s). "
                         "Please contact an administrator for assistance."
                     )
-                    % pwd_params["minimum_hours"]
+                    % pass_min
                 )
         return True
 
@@ -175,19 +160,20 @@ class ResUsers(models.Model):
         :raises: UserError on reused password
         """
         crypt = self._crypt_context()
-        pwd_params = self._get_all_password_params()
         for user in self:
-            if not pwd_params["history"]:  # disabled
+            password_history = user.company_id.password_history
+            if not password_history:  # disabled
                 recent_passes = self.env["res.users.pass.history"]
-            elif pwd_params["history"] < 0:  # unlimited
+            elif password_history < 0:  # unlimited
                 recent_passes = user.password_history_ids
             else:
-                recent_passes = user.password_history_ids[: pwd_params["history"]]
+                recent_passes = user.password_history_ids[:password_history]
             if recent_passes.filtered(
                 lambda r: crypt.verify(password, r.password_crypt)
             ):
                 raise UserError(
-                    _("Cannot use the most recent %d passwords") % pwd_params["history"]
+                    _("Cannot use the most recent %d passwords")
+                    % user.company_id.password_history
                 )
 
     def _set_encrypted_password(self, uid, pw):
