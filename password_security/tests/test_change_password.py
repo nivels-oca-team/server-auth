@@ -3,13 +3,14 @@
 
 from unittest import mock
 
+from .common import PasswordSecurityCommon
 from odoo import http
 from odoo.exceptions import UserError, ValidationError
 from odoo.tests.common import HOST, HttpCase, Opener, get_db_name, tagged
 
 
 @tagged("-at_install", "post_install")
-class TestPasswordSecurityChange(HttpCase):
+class TestPasswordSecurityChange(PasswordSecurityCommon, HttpCase):
     def login(self, username, password):
         """Log in with provided credentials."""
         self.session = http.root.session_store.new()
@@ -92,8 +93,8 @@ class TestPasswordSecurityChange(HttpCase):
         """It should fail when chosen password was previously used"""
 
         # Set password history limit
-        self.env["ir.config_parameter"].sudo().set_param("password_security.history", 3)
         user = self.env["res.users"].search([("login", "=", "admin")], limit=1)
+        user.company_id.password_history = 3
         self.assertEqual(len(user.password_history_ids), 0)
 
         # Change password: password history records created

@@ -5,14 +5,15 @@
 {
     "name": "Password Security",
     "summary": "Allow admin to set password security requirements.",
-    "version": "17.0.2.0.0",
+    "version": "17.0.1.0.1",
     "author": "LasLabs, "
     "Onestein, "
     "Kaushal Prajapati, "
     "Tecnativa, "
     "initOS GmbH, "
     "Omar Nasr, "
-    "Odoo Community Association (OCA)",
+    "Odoo Community Association (OCA), "
+    "nivels Gmbh",
     "category": "Base",
     "depends": [
         "auth_signup",
@@ -28,6 +29,5 @@
     "demo": [
         "demo/res_users.xml",
     ],
-    "post_init_hook": "init_config_parameters",
     "installable": True,
 }

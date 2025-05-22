@@ -5,9 +5,10 @@ import time
 
 from odoo.exceptions import UserError
 from odoo.tests.common import TransactionCase
+from .common import PasswordSecurityCommon
 
 
-class TestResUsers(TransactionCase):
+class TestResUsers(PasswordSecurityCommon, TransactionCase):
     def setUp(self):
         super().setUp()
         self.login = "foslabs@example.com"
@@ -21,6 +22,7 @@ class TestResUsers(TransactionCase):
             "name": "User",
             "login": self.login,
             "password": self.password,
+            "company_id": self.main_comp.id,
         }
         self.model_obj = self.env["res.users"]
 
@@ -141,21 +143,14 @@ class TestResUsers(TransactionCase):
     def test_validate_pass_reset_zero(self):
         """It should allow reset pass when <= 0"""
         rec_id = self._new_record()
-        self.env["ir.config_parameter"].sudo().set_param(
-            "password_security.minimum_hours", 0
-        )
+        rec_id.company_id.password_minimum = 0
         self.assertEqual(
             True,
             rec_id._validate_pass_reset(),
         )
 
     def test_underscore_is_special_character(self):
-        password_special = int(
-            self.env["ir.config_parameter"]
-            .sudo()
-            .get_param("password_security.special", default=1)
-        )
-        self.assertTrue(password_special)
+        self.assertTrue(self.main_comp.password_special)
         rec_id = self._new_record()
         rec_id._check_password("asdQWE12345_3")
 

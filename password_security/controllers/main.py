@@ -42,8 +42,7 @@ class PasswordSecurityHome(AuthSignupHome):
 
     @http.route()
     def web_auth_signup(self, *args, **kw):
-        """Try to catch all the possible exceptions not already handled
-        in the parent method"""
+        """Try to catch all the possible exceptions not already handled in the parent method"""
 
         try:
             qcontext = self.get_auth_signup_qcontext()
